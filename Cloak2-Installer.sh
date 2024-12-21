@@ -1,4 +1,51 @@
 #!/bin/bash
+
+ALTERNATIVE_PORT=443
+
+function ReadClientConfigVariables() {
+    local config=$1
+    ckproxymethod=$(jq -r '.ProxyMethod' $config)
+    ckcrypt=$(jq -r '.EncryptionMethod' $config)
+    ckuid=$(jq -r '.UID' $config)
+    ckpub=$(jq -r '.PublicKey' $config)
+    ckwebaddr=$(jq -r '.ServerName' $config)
+    cknumconn=$(jq -r '.NumConn' $config)
+    ckbrowsersig=$(jq -r '.BrowserSig' $config)
+    ckstreamtimeout=$(jq -r '.StreamTimeout' $config)
+}
+
+function ShowConnectionInfoForClientConfig() {
+    echo "Your Server IP: $PUBLIC_IP"
+    echo "Password:       $Password"
+    echo "Port:           $ALTERNATIVE_PORT"
+    echo "Encryption:     $cipher"
+    echo "Cloak Proxy Method:   $ckproxymethod"
+    echo "Cloak UID:            $ckuid"
+    echo "Cloak Public Key:     $ckpub"
+    echo "Cloak Encryption:     $ckcrypt"
+    echo "Cloak Server Name:    $ckwebaddr"
+    echo "Cloak NumConn:        $cknumconn"
+    echo "Cloak MaskBrowser:    $ckbrowsersig"
+    echo "Cloak StreamTimeout:	$ckstreamtimeout"
+    echo "Also read more about these arguments at https://github.com/cbeuw/Cloak#client"
+    echo
+    echo "Download cloak client for android from https://github.com/cbeuw/Cloak-android/releases"
+    echo "Download cloak client for PC from https://github.com/cbeuw/Cloak/releases"
+    echo
+    echo
+    echo
+    ckpub=$(echo "$ckpub" | sed -r 's/=/\\=/g')
+    ckuid=$(echo "$ckuid" | sed -r 's/=/\\=/g')
+    SERVER_BASE64=$(printf "%s" "$cipher:$Password" | base64)
+    SERVER_CLOAK_ARGS="ck-client;UID=$ckuid;PublicKey=$ckpub;ServerName=$ckwebaddr;BrowserSig=$ckbrowsersig;NumConn=$cknumconn;ProxyMethod=$ckproxymethod;EncryptionMethod=$ckcrypt;StreamTimeout=$ckstreamtimeout"
+    SERVER_CLOAK_ARGS=$(printf "%s" "$SERVER_CLOAK_ARGS" | curl -Gso /dev/null -w %{url_effective} --data-urlencode @- "" | cut -c 3-) #https://stackoverflow.com/a/10797966/4213397
+    SERVER_BASE64="ss://$SERVER_BASE64@$PUBLIC_IP:$ALTERNATIVE_PORT?plugin=$SERVER_CLOAK_ARGS"
+    qrencode -t ansiutf8 "$SERVER_BASE64"
+    echo
+    echo
+    echo "Or just use this string: $SERVER_BASE64"
+}
+
 num_regex='^[0-9]+$'
 function GetRandomPort() {
 	local __resultvar=$1
@@ -236,6 +283,7 @@ if [ -d "/etc/cloak" ]; then
 	echo "6) Regenerate Firewall Rules"
 	echo "7) Update Cloak"
 	echo "8) Uninstall Cloak"
+	echo "9) Show connection info for client config"
 	read -r -p "Please enter a number: " OPTION
 	cd /etc/cloak || exit 2
 	source ckport.txt
@@ -522,6 +570,30 @@ if [ -d "/etc/cloak" ]; then
 			echo "Done"
 			echo "Please reboot the server for a clean uninstall."
 		fi
+		;;
+	9)
+		CLIENT_FILES=(client_configs/*.json)
+		COUNTER=1
+		for i in "${CLIENT_FILES[@]}"; do
+			echo "$COUNTER) $i"
+			COUNTER=$((COUNTER + 1))
+		done
+
+		read -r -p "Which config you want to see it's link?(Choose by number) " OPTION
+		OPTION=$((OPTION - 1))
+		config=${CLIENT_FILES[OPTION]}
+
+		ReadClientConfigVariables $config
+
+		PUBLIC_IP="$(curl https://api.ipify.org -sS)"
+		CURL_EXIT_STATUS=$?
+		if [ $CURL_EXIT_STATUS -ne 0 ]; then
+			PUBLIC_IP="YOUR_IP"
+		fi
+		cipher=$(jq -r '.method' <'/etc/shadowsocks-rust/config.json')
+		Password=$(jq -r '.password' <'/etc/shadowsocks-rust/config.json')
+
+		ShowConnectionInfoForClientConfig
 		;;
 	esac
 	exit
