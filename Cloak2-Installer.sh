@@ -12,6 +12,8 @@ function ReadClientConfigVariables() {
     cknumconn=$(jq -r '.NumConn' $config)
     ckbrowsersig=$(jq -r '.BrowserSig' $config)
     ckstreamtimeout=$(jq -r '.StreamTimeout' $config)
+    xbase=${config##*/}
+    user=${xbase%.*}
 }
 
 function ShowConnectionInfoForClientConfig() {
@@ -591,7 +593,7 @@ if [ -d "/etc/cloak" ]; then
 			PUBLIC_IP="YOUR_IP"
 		fi
 		cipher=$(jq -r '.method' <'/etc/shadowsocks-rust/config.json')
-		Password=$(jq -r '.password' <'/etc/shadowsocks-rust/config.json')
+		Password=$(jq -r ".users.$user" '/etc/shadowsocks-rust/config.json')
 
 		ShowConnectionInfoForClientConfig
 		;;
